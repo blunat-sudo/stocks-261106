@@ -19,8 +19,7 @@ with col1:
 
 with col2:
     st.subheader("두 번째 종목: 해성에어로보틱스")
-    # 해성에어로보틱스 종목코드 예시 (정확한 코드로 수정 가능)
-    code2 = st.text_input("종목코드 2", value="059270", key="c2") 
+    code2 = st.text_input("종목코드 2", value="381970", key="c2") 
     qty2 = st.number_input("보유 수량 2 (주)", min_value=0, value=200, key="q2")
 
 st.markdown("---")
@@ -33,7 +32,6 @@ if st.button("🔄 새로고침 및 자산 재계산하기", use_container_width
 def get_stock_data(ticker_code, qty):
     try:
         today = datetime.date.today()
-        # 영업일 기준 넉넉하게 15일 전부터 오늘까지 조회하여 최근 5개 거래일 추출
         start_date = (today - datetime.timedelta(days=15)).strftime("%Y%m%d")
         end_date = today.strftime("%Y%m%d")
         
@@ -43,7 +41,6 @@ def get_stock_data(ticker_code, qty):
         if df.empty:
             return name, 0, pd.DataFrame()
             
-        # 최근 5일 데이터만 추출
         df_recent = df.tail(5).copy()
         current_price = int(df_recent['종가'].iloc[-1])
         
@@ -64,7 +61,7 @@ else:
     grand_total = total1 + total2
 
     # 화면 분할 배치 (왼쪽: 현재 요약 및 합계 / 오른쪽: 과거 5일 변동 목록)
-    layout_col1, layout_col2 = st.columns([1, 1.2])
+    layout_col1, layout_col2 = st.columns([1, 1.3])
 
     with layout_col1:
         st.subheader("📊 현재 자산 평가 요약")
@@ -77,27 +74,48 @@ else:
     with layout_col2:
         st.subheader("📅 과거 5일간 날짜별 자산 변동 목록")
         
-        # 날짜별 합산 데이터프레임 생성
         try:
-            # 두 종목의 날짜 인덱스 교집합 또는 합집합 활용을 위해 날짜 기준 정렬
             combined_df = pd.DataFrame(index=df1.index)
             combined_df[f'{name1} 종가'] = df1['종가']
             combined_df[f'{name2} 종가'] = df2['종가']
-            combined_df = combined_df.dropna() # 데이터가 모두 존재하는 날짜만
+            combined_df = combined_df.dropna()
             
-            # 날짜별 총 자산 합계 계산
             combined_df['종목1 평가액'] = combined_df[f'{name1} 종가'] * qty1
             combined_df['종목2 평가액'] = combined_df[f'{name2} 종가'] * qty2
             combined_df['총 자산 합계'] = combined_df['종목1 평가액'] + combined_df['종목2 평가액']
             
-            # 보기 편하게 날짜 형식 변환 및 컬럼 정리
+            # 전날 대비 증감 여부 판단을 위한 원본 숫자 데이터 보관
+            raw_total_assets = combined_df['총 자산 합계']
+            
+            # 보기 편한 문자열 형태로 변환된 데이터프레임 생성
             display_df = pd.DataFrame({
                 '날짜': combined_df.index.strftime('%Y-%m-%d'),
                 f'{name1} 주가': combined_df[f'{name1} 종가'].map('{:,.0f}원'.format),
                 f'{name2} 주가': combined_df[f'{name2} 종가'].map('{:,.0f}원'.format),
-                '날짜별 총 자산 합계': combined_df['총 자산 합계'].map('{:,.0f}원'.format)
+                '날짜별 총 자산 합계': raw_total_assets.map('{:,.0f}원'.format)
             })
             
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            # 전날 대비 자산 증가/감소에 따라 글자 색상을 적용하는 함수
+            def color_diff(val, series_orig):
+                # 첫 번째 행은 비교 대상(전날)이 없으므로 검은색 유지
+                idx = val.index
+                styles = []
+                for i, row in enumerate(val):
+                    if i == 0:
+                        styles.append('color: black;')
+                    else:
+                        current_val = series_orig.iloc[i]
+                        prev_val = series_orig.iloc[i-1]
+                        if current_val > prev_val:
+                            styles.append('color: red; font-weight: bold;')  # 증가: 빨간색
+                        else:
+                            styles.append('color: black;')                  # 감소/동일: 검은색
+                return styles
+
+            # 스타일 적용 (총 자산 합계 열에 색상 서식 입히기)
+            styled_df = display_df.style.apply(lambda x: color_diff(x, raw_total_assets), subset=['날짜별 총 자산 합계'])
+            
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
+            st.caption("💡 '날짜별 총 자산 합계' 기준 전일 대비 증가한 경우 빨간색으로 표시됩니다.")
         except Exception as ex:
             st.warning("과거 5일 데이터를 동기화하는 중 일부 차이가 발생했습니다. 주말이나 휴일일 경우 최근 영업일 기준으로 표시됩니다.")
