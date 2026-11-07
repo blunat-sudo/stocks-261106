@@ -19,7 +19,7 @@ with col1:
 
 with col2:
     st.subheader("두 번째 종목: 해성에어로보틱스")
-    code2 = st.text_input("종목코드 2", value="381970", key="c2") 
+    code2 = st.text_input("종목코드 2", value="059270", key="c2") 
     qty2 = st.number_input("보유 수량 2 (주)", min_value=0, value=200, key="q2")
 
 st.markdown("---")
