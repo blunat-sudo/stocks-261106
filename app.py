@@ -18,7 +18,7 @@ with col1:
     qty1 = st.number_input("보유 수량 1 (주)", min_value=0, value=1722, key="q1")
 
 with col2:
-    st.subheader("두 번째 종목: 해성에어로보틱스")
+    st.subheader("দ্বিতীয় 종목: 해성에어로보틱스")
     code2 = st.text_input("종목코드 2", value="059270", key="c2") 
     qty2 = st.number_input("보유 수량 2 (주)", min_value=0, value=200, key="q2")
 
@@ -60,8 +60,8 @@ else:
     total2 = price2 * qty2
     grand_total = total1 + total2
 
-    # 화면 분할 배치 (왼쪽: 현재 요약 및 합계 / 오른쪽: 과거 5일 변동 목록)
-    layout_col1, layout_col2 = st.columns([1, 1.3])
+    # 화면 분할 배치
+    layout_col1, layout_col2 = st.columns([1, 1.4])
 
     with layout_col1:
         st.subheader("📊 현재 자산 평가 요약")
@@ -84,38 +84,32 @@ else:
             combined_df['종목2 평가액'] = combined_df[f'{name2} 종가'] * qty2
             combined_df['총 자산 합계'] = combined_df['종목1 평가액'] + combined_df['종목2 평가액']
             
-            # 전날 대비 증감 여부 판단을 위한 원본 숫자 데이터 보관
-            raw_total_assets = combined_df['총 자산 합계']
+            # 전일 대비 변동 기호(▲, ▼)를 포함한 텍스트 리스트 생성
+            asset_values = combined_df['총 자산 합계'].values
+            formatted_assets = []
             
-            # 보기 편한 문자열 형태로 변환된 데이터프레임 생성
+            for i, val in enumerate(asset_values):
+                val_str = f"{val:,.0f}원"
+                if i == 0:
+                    formatted_assets.append(f"{val_str} (-)")
+                else:
+                    diff = val - asset_values[i-1]
+                    if diff > 0:
+                        formatted_assets.append(f"▲ {val_str} (+{diff:,.0f})")  # 증가
+                    elif diff < 0:
+                        formatted_assets.append(f"▼ {val_str} ({diff:,.0f})")  # 감소
+                    else:
+                        formatted_assets.append(f"- {val_str} (변동 없음)")
+            
+            # 화면 표시용 데이터프레임 구성
             display_df = pd.DataFrame({
                 '날짜': combined_df.index.strftime('%Y-%m-%d'),
                 f'{name1} 주가': combined_df[f'{name1} 종가'].map('{:,.0f}원'.format),
                 f'{name2} 주가': combined_df[f'{name2} 종가'].map('{:,.0f}원'.format),
-                '날짜별 총 자산 합계': raw_total_assets.map('{:,.0f}원'.format)
+                '날짜별 총 자산 합계 (전일 대비)': formatted_assets
             })
             
-            # 전날 대비 자산 증가/감소에 따라 글자 색상을 적용하는 함수
-            def color_diff(val, series_orig):
-                # 첫 번째 행은 비교 대상(전날)이 없으므로 검은색 유지
-                idx = val.index
-                styles = []
-                for i, row in enumerate(val):
-                    if i == 0:
-                        styles.append('color: black;')
-                    else:
-                        current_val = series_orig.iloc[i]
-                        prev_val = series_orig.iloc[i-1]
-                        if current_val > prev_val:
-                            styles.append('color: red; font-weight: bold;')  # 증가: 빨간색
-                        else:
-                            styles.append('color: black;')                  # 감소/동일: 검은색
-                return styles
-
-            # 스타일 적용 (총 자산 합계 열에 색상 서식 입히기)
-            styled_df = display_df.style.apply(lambda x: color_diff(x, raw_total_assets), subset=['날짜별 총 자산 합계'])
-            
-            st.dataframe(styled_df, use_container_width=True, hide_index=True)
-            st.caption("💡 '날짜별 총 자산 합계' 기준 전일 대비 증가한 경우 빨간색으로 표시됩니다.")
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.caption("💡 전일 대비 자산이 증가한 경우 '▲', 감소한 경우 '▼' 기호와 함께 변동 금액이 함께 표시됩니다.")
         except Exception as ex:
             st.warning("과거 5일 데이터를 동기화하는 중 일부 차이가 발생했습니다. 주말이나 휴일일 경우 최근 영업일 기준으로 표시됩니다.")
